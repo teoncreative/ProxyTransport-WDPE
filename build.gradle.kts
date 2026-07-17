@@ -13,6 +13,7 @@ java {
 }
 
 repositories {
+    mavenLocal()
     maven("https://repo.waterdog.dev/snapshots")
     maven("https://repo.opencollab.dev/main/")
     mavenCentral()
