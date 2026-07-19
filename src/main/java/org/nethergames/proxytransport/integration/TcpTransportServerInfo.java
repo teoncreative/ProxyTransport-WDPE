@@ -43,27 +43,31 @@ public class TcpTransportServerInfo extends ServerInfo {
     }
 
     @Override
-    public Future<ClientConnection> createConnection(ProxiedPlayer proxiedPlayer) {
-        EventLoop eventLoop = proxiedPlayer.getProxy().getWorkerEventLoopGroup().next();
+    public Future<ClientConnection> createConnection(ProxiedPlayer player) {
+        return createConnection(player, this);
+    }
+
+    public static Future<ClientConnection> createConnection(ProxiedPlayer player, ServerInfo info) {
+        EventLoop eventLoop = player.getProxy().getWorkerEventLoopGroup().next();
         Promise<ClientConnection> promise = eventLoop.newPromise();
 
         new Bootstrap()
-                .group(downstreamLoopGroup)
-                .handler(new TransportChannelInitializer(proxiedPlayer, this, promise))
-                .localAddress(new InetSocketAddress("0.0.0.0", 0))
-                .channel(getProperSocketChannel())
-                .remoteAddress(this.getAddress())
-                .connect().addListener((ChannelFuture future) -> {
-                    if (!future.isSuccess()) {
-                        promise.tryFailure(future.cause());
-                        future.channel().close();
-                    }
-                });
+            .group(downstreamLoopGroup)
+            .handler(new TransportChannelInitializer(player, info, promise))
+            .localAddress(new InetSocketAddress("0.0.0.0", 0))
+            .channel(getProperSocketChannel())
+            .remoteAddress(info.getAddress())
+            .connect().addListener((ChannelFuture future) -> {
+                if (!future.isSuccess()) {
+                    promise.tryFailure(future.cause());
+                    future.channel().close();
+                }
+            });
 
         return promise;
     }
 
-    public Class<? extends SocketChannel> getProperSocketChannel() {
+    public static Class<? extends SocketChannel> getProperSocketChannel() {
         return Epoll.isAvailable() ? EpollSocketChannel.class : NioSocketChannel.class;
     }
 }

@@ -18,6 +18,7 @@ import io.netty.incubator.codec.quic.*;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.Promise;
 import net.jodah.expiringmap.internal.NamedThreadFactory;
+import org.apache.logging.log4j.core.jmx.Server;
 import org.nethergames.proxytransport.impl.TransportChannelInitializer;
 
 import java.net.InetSocketAddress;
@@ -48,16 +49,20 @@ public class QuicTransportServerInfo extends ServerInfo {
     }
 
     @Override
-    public Future<ClientConnection> createConnection(ProxiedPlayer proxiedPlayer) {
-        EventLoop eventLoop = proxiedPlayer.getProxy().getWorkerEventLoopGroup().next();
+    public Future<ClientConnection> createConnection(ProxiedPlayer player) {
+        return createConnection(player, this, this.serverConnections);
+    }
+    
+    public static Future<ClientConnection> createConnection(ProxiedPlayer player, ServerInfo info, ConcurrentHashMap<InetSocketAddress, Future<QuicChannel>> serverConnections) {
+        EventLoop eventLoop = player.getProxy().getWorkerEventLoopGroup().next();
         Promise<ClientConnection> promise = eventLoop.newPromise();
 
-        this.createServerConnection(eventLoop, proxiedPlayer.getLogger(), this.getAddress()).addListener((Future<QuicChannel> future) -> {
+        createServerConnection(info, serverConnections, eventLoop, player.getLogger(), info.getAddress()).addListener((Future<QuicChannel> future) -> {
             if (future.isSuccess()) {
-                proxiedPlayer.getLogger().debug("Creating stream for " + this.getServerName() + " server");
+                player.getLogger().debug("Creating stream for " + info.getServerName() + " server");
                 QuicChannel quicChannel = future.getNow();
 
-                quicChannel.createStream(QuicStreamType.BIDIRECTIONAL, new TransportChannelInitializer(proxiedPlayer, this, promise)).addListener((Future<QuicStreamChannel> streamFuture) -> {
+                quicChannel.createStream(QuicStreamType.BIDIRECTIONAL, new TransportChannelInitializer(player, info, promise)).addListener((Future<QuicStreamChannel> streamFuture) -> {
                     if (!streamFuture.isSuccess()) {
                         promise.tryFailure(streamFuture.cause());
                         quicChannel.close();
@@ -71,7 +76,7 @@ public class QuicTransportServerInfo extends ServerInfo {
         return promise;
     }
 
-    private Future<QuicChannel> createServerConnection(EventLoopGroup eventLoopGroup, MainLogger logger, InetSocketAddress address) {
+    private static Future<QuicChannel> createServerConnection(ServerInfo info, ConcurrentHashMap<InetSocketAddress, Future<QuicChannel>> serverConnections, EventLoopGroup eventLoopGroup, MainLogger logger, InetSocketAddress address) {
         EventLoop eventLoop = eventLoopGroup.next();
 
         // QUIC needs a resolved address; unlike TCP it won't resolve a hostname and NPEs on a null InetAddress.
@@ -79,14 +84,14 @@ public class QuicTransportServerInfo extends ServerInfo {
                 ? new InetSocketAddress(address.getHostString(), address.getPort())
                 : address;
 
-        if (this.serverConnections.containsKey(target)) {
-            logger.info("Reusing connection to " + target + " for " + this.getServerName() + " server");
-            return this.serverConnections.get(target);
+        if (serverConnections.containsKey(target)) {
+            logger.info("Reusing connection to " + target + " for " + info.getServerName() + " server");
+            return serverConnections.get(target);
         }
 
-        logger.info("Creating connection to " + target + " for " + this.getServerName() + " server");
+        logger.info("Creating connection to " + target + " for " + info.getServerName() + " server");
         Promise<QuicChannel> promise = eventLoop.newPromise();
-        this.serverConnections.put(target, promise);
+        serverConnections.put(target, promise);
 
         QuicSslContext sslContext = QuicSslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).applicationProtocols("ng").build();
         ChannelHandler codec = new QuicClientCodecBuilder()
@@ -115,35 +120,35 @@ public class QuicTransportServerInfo extends ServerInfo {
                                 .remoteAddress(target)
                                 .connect().addListener((Future<QuicChannel> quicChannelFuture) -> {
                                     if (quicChannelFuture.isSuccess()) {
-                                        logger.debug("Connection to " + target + " for " + this.getServerName() + " server established");
+                                        logger.debug("Connection to " + target + " for " + info.getServerName() + " server established");
 
                                         QuicChannel quicChannel = quicChannelFuture.getNow();
                                         quicChannel.closeFuture().addListener(f -> {
-                                            logger.debug("Connection to " + target + " for " + this.getServerName() + " server closed");
+                                            logger.debug("Connection to " + target + " for " + info.getServerName() + " server closed");
                                             channelFuture.channel().close();
-                                            this.serverConnections.remove(target);
+                                            serverConnections.remove(target);
                                         });
 
                                         promise.trySuccess(quicChannel);
                                     } else {
-                                        logger.warning("Connection to " + target + " for " + this.getServerName() + " server failed");
+                                        logger.warning("Connection to " + target + " for " + info.getServerName() + " server failed");
 
                                         promise.tryFailure(quicChannelFuture.cause());
                                         channelFuture.channel().close();
-                                        this.serverConnections.remove(target);
+                                        serverConnections.remove(target);
                                     }
                                 });
                     } else {
                         promise.tryFailure(channelFuture.cause());
                         channelFuture.channel().close();
-                        this.serverConnections.remove(target);
+                        serverConnections.remove(target);
                     }
                 });
 
         return promise;
     }
 
-    public Class<? extends DatagramChannel> getProperSocketChannel() {
+    public static Class<? extends DatagramChannel> getProperSocketChannel() {
         return Epoll.isAvailable() ? EpollDatagramChannel.class : NioDatagramChannel.class;
     }
 }
