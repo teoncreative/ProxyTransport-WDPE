@@ -1,39 +1,57 @@
-# Proxy Transport
+# ProxyTransport for WaterdogPE
 
-Proxy Transport is a TCP & QUIC transport protocol implementation to replace the inefficient RakNet protocol implementation
-between proxies and downstream servers.
+A [WaterdogPE](https://github.com/WaterdogPE/WaterdogPE) plugin that connects the proxy to its downstream
+servers over **raw TCP or QUIC** instead of RakNet.
 
-## Format
+```
+Bedrock client ──RakNet──▶ WaterdogPE (+this plugin) ──TCP/QUIC──▶ downstream server
+```
 
-Packet frames have the following format:
+## Setup
 
-- frameLength: int
-- buffer: ByteBuf (the packets are formatted in the MCPE batch packet format with compression type byte in front of it)
+Drop the jar into the proxy's `plugins/` folder and restart. The plugin registers two downstream server types,
+`tcp` and `quic`.
 
-## Compression
+## Pointing servers at it
 
-ProxyTransport leverages different compression algorithms to improve bandwidth usage and CPU Usage.
-Three compression algorithms are supported: Zlib, Snappy, and Zstd.
+Server info objects have to be created through this plugin, so add it as a dependency of the plugin that
+registers your servers:
 
-The compression byte has been extended with type `254` to support ZSTD as compression algorithm.
+```yaml
+depends:
+  - ProxyTransport
+```
 
-#### General rule
-Packets are bi-directional. A packet can be sent from the client (or proxy) to the downstream server (Serverbound) or from the downstream server to the client (Clientbound).
+Then create your servers through the factory for the transport you want, instead of `new ServerInfo(...)`:
 
-Since the 1.19.30 update, the client can use both the Zlib and the Snappy compression, the proxy can dictate which one to use.
-For clients < 1.19.30, zlib is the only option.
+```java
+ServerInfoFactory QUIC_INFO_FACTORY = ServerInfoType.fromString("quic").getServerInfoFactory();
 
-The following rules apply:
+ServerInfo server = QUIC_INFO_FACTORY.createServerInfo(name, address, publicAddress);
+```
 
-- Serverbound:
-  - **Unrewritten** packet batches are unchanged. They use the compression that the proxy dictated to the client and may be recompressed if the compressions differ.
-  - **Rewritten** packet batches are re-compressed using Zstd.
-- Clientbound:
-  - Packets have to be sent in the compression of the client from the downstream server, otherwise every packet batch will have to be recompressed.
-    That is possible, however not desired since it will cause notable overhead.
+Use `"tcp"` for the TCP transport. If you have your own `ServerInfo` subclass, it needs to extend this
+plugin's type instead.
 
-The proxy receives and matches the NetworkSettingsPacket from the Downstream server to decide whether recompression is necessary.
+## QUIC
 
-For every session two values are maintained: the clientNativeCompressionAlgo and the serverNativeCompressionAlgo.
+QUIC needs an extra JVM flag on the proxy on Java 17+, because the QUIC native has to be loaded into Netty's
+class loader:
 
-The clientNative algorithm is the algorithm that the client uses to send packets to the server. The server native algorithm is what the server uses to send to the client.
+```
+--add-opens java.base/jdk.internal.loader=ALL-UNNAMED
+```
+
+If the flag is missing, QUIC is skipped and the log names the exact flag to add — TCP is unaffected.
+
+## Downstream servers
+
+The downstream server has to speak ProxyTransport too:
+
+- **Geyser** — [ProxyTransport-Geyser](https://github.com/teoncreative/ProxyTransport-Geyser)
+- **PocketMine-MP** — [ProxyTransport-PM](https://github.com/NetherGamesMC/ProxyTransport-PM)
+
+## Protocol
+
+The wire protocol and the shared implementation live in
+[ProxyTransport-Common](https://github.com/teoncreative/ProxyTransport-Common).

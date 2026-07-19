@@ -1,4 +1,4 @@
-rootProject.name = "ProxyTransport"
+rootProject.name = "ProxyTransport-WDPE"
 
 // Shared ProxyTransport wire implementation, vendored as a git submodule (see .gitmodules).
 // Run `git submodule update --init` after cloning.
