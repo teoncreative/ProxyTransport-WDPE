@@ -10,8 +10,6 @@ import dev.waterdog.waterdogpe.network.connection.codec.packet.BedrockPacketCode
 import dev.waterdog.waterdogpe.network.serverinfo.ServerInfo;
 import dev.waterdog.waterdogpe.player.ProxiedPlayer;
 import io.netty.channel.*;
-import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
-import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.util.concurrent.Promise;
 import lombok.RequiredArgsConstructor;
 import org.cloudburstmc.netty.channel.raknet.RakChannel;
@@ -19,7 +17,8 @@ import org.cloudburstmc.netty.channel.raknet.config.RakChannelMetrics;
 import org.cloudburstmc.netty.channel.raknet.config.RakChannelOption;
 import org.cloudburstmc.protocol.bedrock.PacketDirection;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionCodec;
-import org.nethergames.proxytransport.compression.FrameIdCodec;
+import org.nethergames.proxytransport.common.codec.ProxyTransportFrameCodec;
+import org.nethergames.proxytransport.common.codec.ProxyTransportFraming;
 import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 import org.nethergames.proxytransport.integration.CustomClientEventHandler;
 
@@ -30,8 +29,6 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
     private final ProxiedPlayer player;
     private final ServerInfo serverInfo;
     private final Promise<ClientConnection> promise;
-    private static final String FRAME_DECODER = "frame-decoder";
-    private static final String FRAME_ENCODER = "frame-encoder";
 
     public TransportChannelInitializer(ProxiedPlayer player, ServerInfo serverInfo, Promise<ClientConnection> promise) {
         this.player = player;
@@ -55,12 +52,10 @@ public class TransportChannelInitializer extends ChannelInitializer<Channel> {
             channel.config().setOption(RakChannelOption.RAK_METRICS, rakMetrics);
         }
 
-        channel.pipeline()
-                .addLast(FRAME_DECODER, new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, 4, 0, 4))
-                .addLast(FRAME_ENCODER, new LengthFieldPrepender(4));
+        ProxyTransportFraming.addFraming(channel.pipeline());
 
         channel.pipeline()
-                .addLast(FrameIdCodec.NAME, new FrameIdCodec())
+                .addLast(ProxyTransportFrameCodec.NAME, new ProxyTransportFrameCodec())
                 .addLast(CompressionCodec.NAME, new ProxyTransportCompressionCodec(getCompressionStrategy(compression, rakVersion, true), false))
                 .addLast(BedrockBatchDecoder.NAME, BATCH_DECODER)
                 .addLast(BedrockBatchEncoder.NAME, new BedrockBatchEncoder())

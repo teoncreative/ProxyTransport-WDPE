@@ -24,6 +24,9 @@ repositories {
 val quicLibs by configurations.creating
 
 dependencies {
+    // Shared ProxyTransport wire implementation (git submodule).
+    implementation(project(":common"))
+
     compileOnly("dev.waterdog.waterdogpe:waterdog:2.0.4-SNAPSHOT")
     compileOnly("io.netty.incubator:netty-incubator-codec-classes-quic:0.0.74.Final")
 
@@ -74,11 +77,17 @@ publishing {
     }
     repositories {
         maven {
-            name = "nethergamesmc"
-            url = uri("https://repo.nethergames.org/repository/NetherGamesMC/")
+            name = "teoncreative"
+            url = uri(
+                if (version.toString().endsWith("SNAPSHOT")) {
+                    "https://repo.teon.llc/repository/maven-snapshots/"
+                } else {
+                    "https://repo.teon.llc/repository/maven-releases/"
+                }
+            )
             credentials {
-                username = System.getenv("REPO_USERNAME")
-                password = System.getenv("REPO_PASSWORD")
+                username = System.getenv("REPO_USERNAME") ?: providers.gradleProperty("teonUsername").orNull
+                password = System.getenv("REPO_PASSWORD") ?: providers.gradleProperty("teonPassword").orNull
             }
         }
     }

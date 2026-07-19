@@ -2,12 +2,22 @@ package org.nethergames.proxytransport;
 
 import dev.waterdog.waterdogpe.network.protocol.ProtocolCodecs;
 import dev.waterdog.waterdogpe.plugin.Plugin;
+import java.nio.file.Path;
+import org.nethergames.proxytransport.common.transport.TransportLogger;
+import org.nethergames.proxytransport.common.util.QuicLibraryInstaller;
 import org.nethergames.proxytransport.integration.QuicTransportServerInfo;
 import org.nethergames.proxytransport.integration.TcpTransportServerInfo;
 import org.nethergames.proxytransport.utils.CodecUpdater;
-import org.nethergames.proxytransport.utils.QuicLibraryInstaller;
 
 public class ProxyTransport extends Plugin {
+
+    private static final String QUIC_PROBE_CLASS = "io.netty.incubator.codec.quic.QuicSslContextBuilder";
+    private static final String[] QUIC_JARS = {
+        // netty-handler first: the QUIC classes need io.netty.handler.ssl.SslContext, which WaterdogPE lacks.
+        "/quic-libs/netty-handler.jar",
+        "/quic-libs/netty-incubator-codec-classes-quic.jar",
+        "/quic-libs/netty-incubator-codec-native-quic.jar",
+    };
 
     @Override
     public void onStartup() {
@@ -17,7 +27,8 @@ public class ProxyTransport extends Plugin {
 
         // Inject the QUIC native onto netty's classloader before any QUIC type is referenced, and only register
         // the QUIC type if that succeeded.
-        if (QuicLibraryInstaller.tryInstall(getLogger())) {
+        Path stagingDir = Path.of(System.getProperty("java.io.tmpdir"), "proxytransport-quic-libs");
+        if (QuicLibraryInstaller.tryInstall(QUIC_PROBE_CLASS, QUIC_JARS, stagingDir, logger())) {
             registerQuicType();
         }
 
@@ -27,6 +38,25 @@ public class ProxyTransport extends Plugin {
     // Separate method so the QUIC classes are only loaded when QUIC is available.
     private void registerQuicType() {
         getLogger().info("Registered type with name {}", QuicTransportServerInfo.TYPE.getIdentifier());
+    }
+
+    private TransportLogger logger() {
+        return new TransportLogger() {
+            @Override
+            public void info(String message) {
+                getLogger().info(message);
+            }
+
+            @Override
+            public void warn(String message) {
+                getLogger().warn(message);
+            }
+
+            @Override
+            public void error(String message, Throwable cause) {
+                getLogger().error(message, cause);
+            }
+        };
     }
 
     @Override

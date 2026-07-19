@@ -1,0 +1,4 @@
+[submodule "common"]
+	path = common
+	url = git@github.com:teoncreative/ProxyTransport-Common.git
+	branch = main

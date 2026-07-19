@@ -9,6 +9,9 @@ import org.cloudburstmc.protocol.bedrock.data.PacketCompressionAlgorithm;
 import org.cloudburstmc.protocol.bedrock.netty.BedrockBatchWrapper;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.BatchCompression;
 import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStrategy;
+import org.nethergames.proxytransport.common.codec.ProxyTransportFraming;
+import org.nethergames.proxytransport.common.codec.ZstdCompression;
+import org.nethergames.proxytransport.common.codec.ZstdCompressionAlgorithm;
 
 import java.util.List;
 
@@ -60,16 +63,16 @@ public class ProxyTransportCompressionCodec extends ProxiedCompressionCodec {
     }
 
     protected byte getCompressionHeader0(CompressionAlgorithm algorithm) {
-        if (algorithm instanceof ProxyTransportAlgorithm) {
-            return -2;
+        if (algorithm instanceof ZstdCompressionAlgorithm) {
+            return ProxyTransportFraming.ZSTD_COMPRESSION_HEADER;
         }
 
         return super.getCompressionHeader0(algorithm);
     }
 
     protected CompressionAlgorithm getCompressionAlgorithm0(byte header) {
-        if (header == -2) {
-            return ProxyTransportAlgorithm.ZSTD;
+        if (header == ProxyTransportFraming.ZSTD_COMPRESSION_HEADER) {
+            return ZstdCompressionAlgorithm.ZSTD;
         }
 
         return super.getCompressionAlgorithm0(header);

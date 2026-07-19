@@ -25,7 +25,7 @@ import org.cloudburstmc.protocol.bedrock.netty.codec.compression.CompressionStra
 import org.cloudburstmc.protocol.bedrock.packet.BedrockPacket;
 import org.cloudburstmc.protocol.bedrock.packet.NetworkStackLatencyPacket;
 import org.cloudburstmc.protocol.bedrock.packet.TickSyncPacket;
-import org.nethergames.proxytransport.compression.FrameIdCodec;
+import org.nethergames.proxytransport.common.codec.ProxyTransportFrameCodec;
 import org.nethergames.proxytransport.compression.ProxyTransportCompressionCodec;
 
 import javax.crypto.SecretKey;
@@ -164,7 +164,7 @@ public class TransportClientConnection extends BedrockClientConnection {
         boolean needsPrefix = this.getPlayer().getProtocol().isAfterOrEqual(ProtocolVersion.MINECRAFT_PE_1_20_60);
         ChannelHandler handler = this.channel.pipeline().get(CompressionCodec.NAME);
         if (handler == null) {
-            this.channel.pipeline().addAfter(FrameIdCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
+            this.channel.pipeline().addAfter(ProxyTransportFrameCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
         } else {
             this.channel.pipeline().replace(CompressionCodec.NAME, CompressionCodec.NAME, new ProxyTransportCompressionCodec(strategy, needsPrefix));
         }
