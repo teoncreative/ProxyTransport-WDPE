@@ -42,14 +42,14 @@ class loader:
 --add-opens java.base/jdk.internal.loader=ALL-UNNAMED
 ```
 
-If the flag is missing, QUIC is skipped and the log names the exact flag to add — TCP is unaffected.
+If the flag is missing, QUIC is skipped.
 
 ## Downstream servers
 
 The downstream server has to speak ProxyTransport too:
 
-- **Geyser** — [ProxyTransport-Geyser](https://github.com/teoncreative/ProxyTransport-Geyser)
-- **PocketMine-MP** — [ProxyTransport-PM](https://github.com/NetherGamesMC/ProxyTransport-PM)
+- **Geyser**: [ProxyTransport-Geyser](https://github.com/teoncreative/ProxyTransport-Geyser)
+- **PocketMine-MP**: [ProxyTransport-PM](https://github.com/NetherGamesMC/ProxyTransport-PM)
 
 ## Protocol
 

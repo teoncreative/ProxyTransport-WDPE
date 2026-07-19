@@ -59,7 +59,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("ProxyTransport.jar")
+        archiveFileName.set("ProxyTransport-WDPE.jar")
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
     }
 
@@ -71,7 +71,7 @@ tasks {
 publishing {
     publications {
         create<MavenPublication>("maven") {
-            artifactId = "proxy-transport"
+            artifactId = "proxytransport-wdpe"
             artifact(tasks.shadowJar)
         }
     }
