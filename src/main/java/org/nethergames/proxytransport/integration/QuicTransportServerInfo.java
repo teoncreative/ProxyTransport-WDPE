@@ -96,7 +96,7 @@ public class QuicTransportServerInfo extends ServerInfo {
         QuicSslContext sslContext = QuicSslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).applicationProtocols("ng").build();
         ChannelHandler codec = new QuicClientCodecBuilder()
                 .sslContext(sslContext)
-                .maxIdleTimeout(2000, TimeUnit.MILLISECONDS)
+                .maxIdleTimeout(30, TimeUnit.SECONDS)
                 .initialMaxData(10000000)
                 .initialMaxStreamDataBidirectionalLocal(1000000)
                 .maxRecvUdpPayloadSize(1350)
