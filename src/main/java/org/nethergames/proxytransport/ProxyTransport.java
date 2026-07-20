@@ -3,6 +3,8 @@ package org.nethergames.proxytransport;
 import dev.waterdog.waterdogpe.network.protocol.ProtocolCodecs;
 import dev.waterdog.waterdogpe.plugin.Plugin;
 import java.nio.file.Path;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.nethergames.proxytransport.common.transport.TransportLogger;
 import org.nethergames.proxytransport.common.util.QuicLibraryInstaller;
 import org.nethergames.proxytransport.integration.QuicTransportServerInfo;
@@ -19,11 +21,16 @@ public class ProxyTransport extends Plugin {
         "/quic-libs/netty-incubator-codec-native-quic.jar",
     };
 
+    private static final String QUICHE_LOGGER = "io.netty.incubator.codec.quic.Quiche";
+    private static final String QUICHE_DEBUG_PROPERTY = "proxytransport.quic.debug";
+
     @Override
     public void onStartup() {
         ProtocolCodecs.addUpdater(new CodecUpdater());
 
         getLogger().info("ProxyTransport was started.");
+
+        silenceQuicheLogging();
 
         // Inject the QUIC native onto netty's classloader before any QUIC type is referenced, and only register
         // the QUIC type if that succeeded.
@@ -33,6 +40,19 @@ public class ProxyTransport extends Plugin {
         }
 
         getLogger().info("Registered type with name {}", TcpTransportServerInfo.TYPE.getIdentifier());
+    }
+
+    /**
+     * Pins quiche's logger to INFO unless {@code -Dproxytransport.quic.debug=true} is set. quiche logs every
+     * packet it sends and receives, and netty decides whether to enable that native logging from the logger's
+     * level while it initializes, so on a proxy running at DEBUG it has to be pinned before the library loads.
+     */
+    private void silenceQuicheLogging() {
+        if (Boolean.getBoolean(QUICHE_DEBUG_PROPERTY)) {
+            getLogger().info("quiche debug logging is enabled");
+            return;
+        }
+        Configurator.setLevel(QUICHE_LOGGER, Level.INFO);
     }
 
     // Separate method so the QUIC classes are only loaded when QUIC is available.

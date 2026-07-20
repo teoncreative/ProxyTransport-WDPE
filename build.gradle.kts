@@ -29,6 +29,8 @@ dependencies {
 
     compileOnly("dev.waterdog.waterdogpe:waterdog:2.0.4-SNAPSHOT")
     compileOnly("io.netty.incubator:netty-incubator-codec-classes-quic:0.0.74.Final")
+    // Shipped by WaterdogPE; used to pin quiche's log level.
+    compileOnly("org.apache.logging.log4j:log4j-core:2.25.4")
 
     compileOnly("org.projectlombok:lombok:1.18.46")
     annotationProcessor("org.projectlombok:lombok:1.18.46")
