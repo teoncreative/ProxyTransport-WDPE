@@ -31,6 +31,21 @@ public class QuicTransportServerInfo extends ServerInfo {
     public static final ThreadFactory downstreamThreadFactory = new NamedThreadFactory("QUIC-Downstream %s");
     public static final EventLoopGroup downstreamLoopGroup = Epoll.isAvailable() ? new EpollEventLoopGroup(availableCPU, downstreamThreadFactory) : new NioEventLoopGroup(availableCPU, downstreamThreadFactory);
 
+    /**
+     * Flow control windows. Each side advertises what it is willing to receive, so these bound what
+     * the downstream server may send to us: chunk data and StartGamePacket. That is the direction
+     * that fills up, which makes this end the one that matters for join bursts.
+     * <p>
+     * One connection is shared by every player on a server, one stream each, so the connection
+     * window covers all of them at once. A player joining pulls several megabytes of chunks, and
+     * once the shared window is exhausted every stream stalls, including someone still waiting on
+     * StartGamePacket. Keep these in step with QuicProxyTransportServer, which governs the reverse
+     * direction.
+     */
+    private static final int MAX_STREAM_DATA = 2 * 1024 * 1024;
+    private static final int MAX_CONNECTION_DATA = 64 * 1024 * 1024;
+    private static final int MAX_STREAMS = 256;
+
     public static final String TYPE_IDENT = "quic";
     public static final ServerInfoType TYPE = ServerInfoType.builder()
             .identifier(TYPE_IDENT)
@@ -97,8 +112,10 @@ public class QuicTransportServerInfo extends ServerInfo {
         ChannelHandler codec = new QuicClientCodecBuilder()
                 .sslContext(sslContext)
                 .maxIdleTimeout(30, TimeUnit.SECONDS)
-                .initialMaxData(10000000)
-                .initialMaxStreamDataBidirectionalLocal(1000000)
+                .initialMaxData(MAX_CONNECTION_DATA)
+                .initialMaxStreamDataBidirectionalLocal(MAX_STREAM_DATA)
+                .initialMaxStreamDataBidirectionalRemote(MAX_STREAM_DATA)
+                .initialMaxStreamsBidirectional(MAX_STREAMS)
                 .maxRecvUdpPayloadSize(1350)
                 .maxSendUdpPayloadSize(1350)
                 .activeMigration(false)
