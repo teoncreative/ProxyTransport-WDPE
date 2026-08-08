@@ -99,14 +99,20 @@ public class QuicTransportServerInfo extends ServerInfo {
                 ? new InetSocketAddress(address.getHostString(), address.getPort())
                 : address;
 
-        if (serverConnections.containsKey(target)) {
+        // Claim the slot atomically. containsKey followed by put let two simultaneous first logins
+        // each build a connection, and the loser's QuicChannel was left with nothing to close it.
+        // A cached entry is only reused while it is still live, so a connection that died without
+        // its closeFuture having run yet cannot poison every subsequent login to this server.
+        Promise<QuicChannel> promise = eventLoop.newPromise();
+        Future<QuicChannel> claimed = serverConnections.compute(target,
+                (key, existing) -> isUsable(existing) ? existing : promise);
+
+        if (claimed != promise) {
             logger.info("Reusing connection to " + target + " for " + info.getServerName() + " server");
-            return serverConnections.get(target);
+            return claimed;
         }
 
         logger.info("Creating connection to " + target + " for " + info.getServerName() + " server");
-        Promise<QuicChannel> promise = eventLoop.newPromise();
-        serverConnections.put(target, promise);
 
         QuicSslContext sslContext = QuicSslContextBuilder.forClient().trustManager(InsecureTrustManagerFactory.INSTANCE).applicationProtocols("ng").build();
         ChannelHandler codec = new QuicClientCodecBuilder()
@@ -143,7 +149,7 @@ public class QuicTransportServerInfo extends ServerInfo {
                                         quicChannel.closeFuture().addListener(f -> {
                                             logger.debug("Connection to " + target + " for " + info.getServerName() + " server closed");
                                             channelFuture.channel().close();
-                                            serverConnections.remove(target);
+                                            serverConnections.remove(target, promise);
                                         });
 
                                         promise.trySuccess(quicChannel);
@@ -152,17 +158,38 @@ public class QuicTransportServerInfo extends ServerInfo {
 
                                         promise.tryFailure(quicChannelFuture.cause());
                                         channelFuture.channel().close();
-                                        serverConnections.remove(target);
+                                        serverConnections.remove(target, promise);
                                     }
                                 });
                     } else {
                         promise.tryFailure(channelFuture.cause());
                         channelFuture.channel().close();
-                        serverConnections.remove(target);
+                        serverConnections.remove(target, promise);
                     }
                 });
 
         return promise;
+    }
+
+    /**
+     * Whether a cached connection can still take new streams. A future that has not resolved yet is
+     * usable, because whoever created it is still connecting and everyone else should wait on it.
+     * One that failed, or that resolved to a channel which has since gone inactive, must not be
+     * handed out again: a dead connection used to stay cached until its closeFuture listener ran,
+     * and every login to that server in the meantime got a stream that could never deliver anything.
+     */
+    private static boolean isUsable(Future<QuicChannel> connection) {
+        if (connection == null) {
+            return false;
+        }
+        if (!connection.isDone()) {
+            return true;
+        }
+        if (!connection.isSuccess()) {
+            return false;
+        }
+        QuicChannel channel = connection.getNow();
+        return channel != null && channel.isActive();
     }
 
     public static Class<? extends DatagramChannel> getProperSocketChannel() {
