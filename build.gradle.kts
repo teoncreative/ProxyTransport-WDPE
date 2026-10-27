@@ -27,7 +27,7 @@ dependencies {
     // Shared ProxyTransport wire implementation (git submodule).
     implementation(project(":common"))
 
-    compileOnly("dev.waterdog.waterdogpe:waterdog:2.0.4-SNAPSHOT")
+    compileOnly("dev.waterdog.waterdogpe:waterdog:2.0.4c-20261027.090859-1")
     compileOnly("io.netty.incubator:netty-incubator-codec-classes-quic:0.0.74.Final")
     // Shipped by WaterdogPE; used to pin quiche's log level.
     compileOnly("org.apache.logging.log4j:log4j-core:2.25.4")
